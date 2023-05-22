@@ -1,5 +1,5 @@
-#ifndef VECTOR_HPP
-#define VECTOR_HPP
+#ifndef VECTOR_BOOL_HPP
+#define VECTOR_BOOL_HPP
 
 #include <memory>
 #include <utility>
@@ -8,21 +8,72 @@
 #include <algorithm>
 #include <iostream>
 
+#include "vector.hpp"
+
 namespace g {
 
-template<typename T, class Allocator = std::allocator<T>>
-class vector {
+using vector_bool_base_type_ = uint64_t;
+
+
+
+template<>
+class vector<bool> {
 private:
 
-    using value_type      = T;
+    using Allocator       = std::allocator<vector_bool_base_type_>;
+    using base_type       = vector_bool_base_type_;
+    using value_type      = bool;
     using allocator_type  = Allocator;
     using size_type       = std::size_t;
     using difference_type = std::ptrdiff_t;
 
     Allocator allocator_;
-    T *data_;
+    base_type *data_;
     size_type capacity_;
     size_type size_;
+
+
+    struct bitref {
+
+        bitref(vector<bool> &base, size_t pos) : base_(base), pos_(pos) {}
+
+        bitref& operator=(bool val)
+        {
+            base_.raw_set(pos_, val);
+            return *this;
+        }
+
+        bitref& operator=(bitref &other)
+        {
+            assert(&other.base_ == &base_);
+            pos_ = other.pos_;
+            return *this;
+        }
+
+        operator bool()
+        {
+            return base_.raw_get(pos_);
+        }
+
+    private:
+        vector<bool> &base_;
+        size_t pos_ = -1;
+    };
+
+    struct const_bitref {
+
+        const_bitref(const vector<bool> &base, size_t pos) : base_(base), pos_(pos) {}
+
+        operator bool()
+        {
+            return base_.raw_get(pos_);
+        }
+
+    private:
+        const vector<bool> &base_;
+        const size_t pos_ = -1;
+    };
+
 
 
 public:
@@ -34,7 +85,7 @@ public:
     constexpr explicit vector(const Allocator& alloc) noexcept;
 
     constexpr explicit vector(size_type count,
-                               const T& value,
+                               bool value,
                                const Allocator& alloc = Allocator());
 
     constexpr explicit vector(size_type count,
@@ -52,7 +103,7 @@ public:
 
     constexpr vector(vector&& other, const Allocator& alloc);
 
-    constexpr vector(std::initializer_list<T> init,
+    constexpr vector(std::initializer_list<bool> init,
                       const Allocator& alloc = Allocator());
 
     constexpr ~vector();
@@ -62,15 +113,15 @@ public:
 
     constexpr vector& operator=(vector&& other) noexcept;
 
-    constexpr vector& operator=(std::initializer_list<T> ilist);
+    constexpr vector& operator=(std::initializer_list<bool> ilist);
 
 
-    constexpr void assign(size_type count, const T& value);
+    constexpr void assign(size_type count, bool value);
 
     template<class InputIt>
     constexpr void assign(InputIt first, InputIt last);
 
-    constexpr void assign(std::initializer_list<T> ilist);
+    constexpr void assign(std::initializer_list<bool> ilist);
 
 
     constexpr allocator_type get_allocator() const noexcept { return allocator_; }
@@ -78,23 +129,23 @@ public:
     //====================================
     //  Element access
 
-    constexpr T& at(size_type pos);
+    constexpr bitref& at(size_type pos);
 
-    constexpr const T& at(size_type pos) const;
-
-
-    constexpr T& operator[](size_type pos);
-
-    constexpr const T& operator[](size_type pos) const;
+    constexpr const const_bitref& at(size_type pos) const;
 
 
-    constexpr T& front()             { assert(size_ != 0); return data_[0]; }
+    constexpr bitref& operator[](size_type pos);
 
-    constexpr const T& front() const { assert(size_ != 0); return data_[0]; }
+    constexpr const const_bitref& operator[](size_type pos) const;
 
-    constexpr T& back()              { assert(size_ != 0); return data_[size_ - 1]; }
 
-    constexpr const T& back()  const { assert(size_ != 0); return data_[size_ - 1]; }
+    constexpr bitref& front()                   { assert(size_ != 0); return (*this)[0]; }
+
+    constexpr const const_bitref& front() const { assert(size_ != 0); return (*this)[0]; }
+
+    constexpr bitref& back()                    { assert(size_ != 0); return (*this)[size_ - 1]; }
+
+    constexpr const const_bitref& back()  const { assert(size_ != 0); return (*this)[size_ - 1]; }
 
 
     //====================================
@@ -103,12 +154,12 @@ public:
     struct iterator {
         using iterator_category = std::random_access_iterator_tag;
         using difference_type   = std::ptrdiff_t;
-        using value_type        = T;
-        using pointer           = T*;
-        using reference         = T&;
+        using value_type        = bitref;
+        using pointer           = bitref*;
+        using reference         = bitref&;
 
     public:
-        explicit iterator(const size_t id, const vector* this_) : id_(id), this_(this_) {}
+        explicit iterator(const size_t id, vector* this_) : id_(id), this_(this_) {}
         iterator(const iterator& other) = default;
 
         bool operator==(const iterator &other) const { return id_ == other.id_; }
@@ -119,28 +170,28 @@ public:
         bool operator<=(const iterator &other) const { return id_ <= other.id_; }
         bool operator>=(const iterator &other) const { return id_ >= other.id_; }
 
-        T& operator*()
+        bitref operator*()
         {
             assert(id_ < this_->size());
-            return this_->data_[id_];
+            return (*this_)[id_];
         }
 
-        const T& operator*() const
+        const bitref operator*() const
         {
             assert(id_ <this_->size());
-            return this_->data_[id_];
+            return (*this_)[id_];
         }
 
-        T& operator[](long long int n)
+        bitref operator[](long long int n)
         {
             assert(id_ + n <this_->size());
-            return this_->data_[id_ + n];
+            return (*this_)[id_ + n];
         }
 
-        const T& operator[](long long int n) const
+        const bitref operator[](long long int n) const
         {
             assert(id_ + n <this_->size());
-            return this_->data_[id_ + n];
+            return (*this_)[id_ + n];
         }
 
         size_t getId() const
@@ -215,7 +266,7 @@ public:
 
     private:
         size_t id_;
-        const vector* this_;
+        vector* this_;
     };
 
     constexpr iterator begin() const noexcept
@@ -262,16 +313,14 @@ public:
 
     constexpr void clear() noexcept;
 
-    constexpr iterator insert(iterator pos, const T& value);
+    constexpr iterator insert(iterator pos, bool value);
 
-    constexpr iterator insert(iterator pos, T&& value);
-
-    constexpr iterator insert(iterator pos, const size_type count, const T& value);
+    constexpr iterator insert(iterator pos, const size_type count, bool value);
 
     template<class InputIt>
     constexpr iterator insert(iterator pos, InputIt first, InputIt last);
 
-    constexpr iterator insert(iterator pos, std::initializer_list<T> ilist);
+    constexpr iterator insert(iterator pos, std::initializer_list<bool> ilist);
 
     template<class... Args>
     constexpr iterator emplace(const iterator pos, Args&&... args);
@@ -280,16 +329,14 @@ public:
 
     constexpr iterator erase(const iterator first, const iterator last);
 
-    constexpr void push_back(const T& value);
-
-    constexpr void push_back(T&& value);
+    constexpr void push_back(bool value);
 
     template<class... Args>
-    constexpr T* emplace_back(Args&&... args);
+    constexpr bitref* emplace_back(Args&&... args);
 
     constexpr void pop_back() noexcept { assert(size_ != 0); resize(size_ - 1); };
 
-    constexpr void resize(size_type count, const T& value = T());
+    constexpr void resize(size_type count, bool value = false);
 
     constexpr void swap(vector& other) noexcept;
 
@@ -806,5 +853,5 @@ constexpr bool vector<T, Allocator>::operator!=(const Container& other) const
     return !(*this == other);
 }
 
-}
+}   // namespace g
 #endif
