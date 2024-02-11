@@ -2,21 +2,20 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <cstdint>
 #include <exception>
 #include <iostream>
 #include <new>
-#include <sys/types.h>
 #include <vector>
 #include <utility>
 
 namespace g {
 
 template<typename Data>
-class ObjPool{
-
+class ObjPool
+{
 private:
-
     enum class NodeState : uint8_t {
         Free,
         Allocated,
@@ -42,7 +41,7 @@ private:
         uint32_t node_id_;
     };
 
-    struct Node{
+    struct Node {
         NodeState state;
         PoolId next;
         Data val;
@@ -56,7 +55,7 @@ public:
     {
         slab_sizes_.push_back(capacity);
 
-        Node *data = (Node*)calloc(capacity, sizeof(Node));
+        Node *data = (Node*)std::calloc(capacity, sizeof(Node));
         if (data == nullptr)
             throw std::bad_alloc();
 
@@ -87,7 +86,7 @@ public:
                 if (node.state == NodeState::Allocated)
                     node.val.~Data();
             }
-            free(slabs_[i]);
+			std::free(slabs_[i]);
         }
 
         slabs_ = std::move(other.slabs_);
@@ -99,6 +98,8 @@ public:
         other.capacity_ = 0;
         other.free_count_ = 0;
         other.last_free_ = -1;
+
+		return *this;
     }
 
     ~ObjPool()
@@ -109,7 +110,7 @@ public:
                 if (node.state == NodeState::Allocated)
                     node.val.~Data();
             }
-            free(slabs_[i]);
+			std::free(slabs_[i]);
         }
         capacity_ = 0;
         free_count_ = 0;
@@ -117,12 +118,12 @@ public:
     }
 
 
-    size_t Alloc()
+    size_t alloc()
     {
         if (free_count_ == 0)
-            Expand();
+            expand();
 
-        Node &node = GetNode(last_free_);
+        Node &node = getNode(last_free_);
         node.state = NodeState::Allocated;
 
         --free_count_;
@@ -130,23 +131,23 @@ public:
     }
 
     template<typename ...Args>
-    size_t InitAlloc(Args ...args)
+    size_t initAlloc(Args ...args)
     {
-        size_t id = Alloc();
-        new(&Get(id)) Data(args...);
+        size_t id = alloc();
+        new(&get(id)) Data(args...);
         return id;
     }
 
-    Data& Get(PoolId id) const
+    Data& get(PoolId id) const
     {
-        return GetNode(id).val;
+        return getNode(id).val;
     }
 
-    void Free(PoolId id)
+    void free(PoolId id)
     {
         ++free_count_;
-        Get(id).~Data();
-        Node &node = GetNode(id);
+        get(id).~Data();
+        Node &node = getNode(id);
         node.state = NodeState::Deallocated;
         node.next = last_free_;
         last_free_ = id;
@@ -159,24 +160,24 @@ private:
     size_t free_count_;
     PoolId last_free_;
 
-    Node& GetNode(PoolId id) const
+    Node& getNode(PoolId id) const
     {
         assert(id.slab_id_ < slabs_.size());
         assert(id.node_id_ < slab_sizes_[id.slab_id_]);
         return slabs_[id.slab_id_][id.node_id_];
     }
 
-    void Expand()
+    void expand()
     {
         if (free_count_ > 0)
             return;
 
-        Node *data = (Node*)calloc(capacity_ * 2, sizeof(Node));
+        Node *data = (Node*)std::calloc(capacity_ * 2, sizeof(Node));
         size_t data_size;
         size_t slab_id = slabs_.size();
 
         if (data == nullptr) {
-            data = (Node*)calloc(capacity_, sizeof(Node));
+            data = (Node*)std::calloc(capacity_, sizeof(Node));
             if (data == nullptr)
                 throw std::bad_alloc();
             data_size = capacity_;
